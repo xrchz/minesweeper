@@ -22,46 +22,113 @@ fun mk_board mine_rate size =
       in (contents,Unpressed) end
     fun mk_row _ = Vector.tabulate(size,mk_square)
     val cols = Vector.tabulate(size,mk_row)
-    val empty_row = Vector.tabulate(size,(fn _ => empty_square))
-  in (cols,empty_row) end
+  in cols end
+
+fun on_board size (i,j) =
+  0 <= i andalso i < size andalso
+  0 <= j andalso j < size
+
+fun mk_board_sub board =
+  let
+    val size = Vector.length board
+    fun s (i,j) =
+      if on_board size (i,j)
+      then Vector.sub(Vector.sub(board,i),j)
+      else empty_square
+  in s end
 
 val mine_rate = 2
 val size = 5
-val (board,empty_row) = mk_board mine_rate size
+val board = mk_board mine_rate size
+
+val board_sub = mk_board_sub board
 
 fun square_string n (c,Flagged) = "!"
   | square_string n (c,Unpressed) = "+"
   | square_string n (Mine,Pressed) = "*"
-  | square_string n (Safe,Pressed) = Int.toString n
+  | square_string n (Safe,Pressed) = if n = 0 then " " else Int.toString n
 
-fun revealed_square_string _ (Mine,_) = "*"
+fun revealed_square_string _ ((Mine,_):square) = "*"
   | revealed_square_string _ (Safe,_) = "+"
 
 fun is_Mine (Mine,_) = true
   | is_Mine _ = false
 
-fun mk_row_strings square_func size prev row next =
+fun is_Pressed (_,Pressed) = true
+  | is_Pressed _ = false
+
+fun neighbour_coords size (i,j) =
+  List.filter (on_board size)
+    [(i-1,j-1), (i,j-1), (i+1,j-1),
+     (i-1,j  ),          (i+1,j  ),
+     (i-1,j+1), (i,j+1), (i+1,j+1)]
+
+fun num_mines board (i,j) =
+  List.length
+    (List.filter is_Mine
+      (List.map (fn (i,j) => Vector.sub(Vector.sub(board,i),j))
+       (neighbour_coords (Vector.length board) (i,j))))
+
+fun mk_board_strings square_func board =
+  Vector.mapi(fn(i,row) =>
+    Vector.mapi(fn(j,sq) =>
+      square_func (num_mines board (i,j)) sq)
+    row)
+  board
+
+val board_strings = mk_board_strings square_string
+val revealed_board_strings = mk_board_strings revealed_square_string
+
+fun concat_strings board =
+  String.concat (
+    Vector.foldr(fn(row,acc) =>
+      Vector.foldr(fn(s,acc) => s::acc) ("\n"::acc) row) [] board )
+
+val board_string = concat_strings o board_strings
+val revealed_board_string = concat_strings o revealed_board_strings
+
+fun press_square (c,Unpressed) = (c,Pressed)
+  | press_square sq = sq
+
+fun flag_square (c,Flagged) = (c,Unpressed)
+  | flag_square (c,Unpressed) = (c,Flagged)
+  | flag_square sq = sq
+
+fun press c board =
   let
-    fun safe_sub(v,i) = if i < 0 orelse size <= i then empty_square else Vector.sub(v,i)
-    fun f (i,sq) =
+    val size = Vector.length board
+    fun p ((ii,jj),board) =
+      if is_Pressed (Vector.sub(Vector.sub(board,ii),jj))
+      then board
+      else
       let
-        val neighbours = [
-          safe_sub(prev,i-1), safe_sub(prev,i), safe_sub(prev,i+1),
-          safe_sub(row, i-1),                   safe_sub(row, i+1),
-          safe_sub(next,i-1), safe_sub(next,i), safe_sub(next,i+1)]
-        val mines = List.length (List.filter is_Mine neighbours)
-      in square_func mines sq end
-   in Vector.mapi f row end
+        val board' =
+          Vector.mapi(fn (i,row) =>
+            Vector.mapi(fn (j,sq) =>
+              if i = ii andalso j = jj then press_square sq else sq)
+            row)
+          board
+      in
+        if num_mines board' (ii,jj) = 0
+        then
+          List.foldl p board'
+            (neighbour_coords size (ii,jj))
+        else board'
+      end
+  in if on_board size c then p (c,board) else board end
 
-val row_strings = mk_row_strings square_string
-val revealed_row_strings = mk_row_strings revealed_square_string
+print (board_string board)
+print (revealed_board_string board)
+val board2 = press (1,2) board
+print (board_string board2)
+val board3 = press (1,1) board2
+print (board_string board3)
+val board4 = press (1,0) board3
+print (board_string board4)
 
-val strs = revealed_row_strings size empty_row (Vector.sub(board,0)) (Vector.sub(board,1))
-
-String.concat(List.tabulate(size,(fn i => Vector.sub(strs,i))))
-
-fun print_board str
-TextIO.output
-
+val board2 = press (0,3) board
+print (board_string board2)
+val board3 = press (0,1) board2
+print (board_string board3)
 
 val () = TextIO.closeIn randomStream
