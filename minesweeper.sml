@@ -1,6 +1,7 @@
-val randomStream = TextIO.openIn"/dev/random"
+val randomStream = ref TextIO.stdIn
+
 fun random_bit() =
-  let val c = Option.valOf (TextIO.input1 randomStream)
+  let val c = Option.valOf (TextIO.input1 (!randomStream))
   in Char.ord c < 128 end
 
 fun weighted_bit d =
@@ -28,21 +29,6 @@ fun on_board size (i,j) =
   0 <= i andalso i < size andalso
   0 <= j andalso j < size
 
-fun mk_board_sub board =
-  let
-    val size = Vector.length board
-    fun s (i,j) =
-      if on_board size (i,j)
-      then Vector.sub(Vector.sub(board,i),j)
-      else empty_square
-  in s end
-
-val mine_rate = 2
-val size = 5
-val board = mk_board mine_rate size
-
-val board_sub = mk_board_sub board
-
 fun square_string n (c,Flagged) = "!"
   | square_string n (c,Unpressed) = "+"
   | square_string n (Mine,Pressed) = "*"
@@ -56,6 +42,9 @@ fun is_Mine (Mine,_) = true
 
 fun is_Pressed (_,Pressed) = true
   | is_Pressed _ = false
+
+fun is_Flagged (_,Flagged) = true
+  | is_Flagged _ = false
 
 fun neighbour_coords size (i,j) =
   List.filter (on_board size)
@@ -117,18 +106,98 @@ fun press c board =
       end
   in if on_board size c then p (c,board) else board end
 
-print (board_string board)
-print (revealed_board_string board)
-val board2 = press (1,2) board
-print (board_string board2)
-val board3 = press (1,1) board2
-print (board_string board3)
-val board4 = press (1,0) board3
-print (board_string board4)
+fun flag (c as (ii,jj)) board =
+  if on_board (Vector.length board) c then
+    Vector.mapi(fn (i,row) =>
+      Vector.mapi(fn (j,sq) =>
+        if i = ii andalso j = jj then flag_square sq else sq)
+      row)
+    board
+  else board
 
-val board2 = press (0,3) board
-print (board_string board2)
-val board3 = press (0,1) board2
-print (board_string board3)
+val exploded =
+  Vector.exists(fn row =>
+    (Vector.exists (fn sq =>
+      is_Pressed sq andalso is_Mine sq)
+    row))
 
-val () = TextIO.closeIn randomStream
+val cleared =
+  not o
+    Vector.exists(fn row =>
+      (Vector.exists(fn sq =>
+        is_Mine sq andalso
+        not (is_Flagged sq))
+      row))
+
+fun prompt_num name default =
+  let
+    val () = print name
+    val () = print " (default "
+    val () = print (Int.toString default)
+    val () = print ")?> "
+    val optline = TextIO.inputLine TextIO.stdIn
+  in
+    case optline of SOME line =>
+      (case Int.fromString line of SOME n =>
+         if 0 <= n then n else default
+       | _ => default)
+    | _ => default
+  end
+
+fun new_game() =
+  let
+    val () = TextIO.output(TextIO.stdOut,"minesweeper\n")
+    val size = prompt_num "Board size" 10
+    val rate = prompt_num "Mine rate" 2
+    (*
+    val () = print "got data: "
+    val () = print (Int.toString size)
+    val () = print " "
+    val () = print (Int.toString rate)
+    val () = print "\n"
+    *)
+  in mk_board rate size end
+
+datatype move = Press of int * int | Flag of int * int
+
+fun usage() =
+  let
+    val () = print "<row> <col>   : press a square\n"
+    val () = print "f <row> <col> : toggle flag on square\n"
+  in () end
+
+fun parse_move line =
+  case String.tokens Char.isSpace line of
+    ["f", row, col] =>
+      Flag (Option.valOf (Int.fromString row),
+            Option.valOf (Int.fromString col))
+  | [row, col] =>
+      Press (Option.valOf (Int.fromString row),
+             Option.valOf (Int.fromString col))
+  | _ => raise Option
+
+fun main() =
+  let
+    val () = randomStream := TextIO.openIn"/dev/urandom"
+    val board = new_game()
+    val () = usage()
+    fun play board =
+      let
+        val () = print (board_string board)
+        val () = print "?> "
+        val line = Option.valOf (TextIO.inputLine TextIO.stdIn)
+        val board =
+          case parse_move line of
+            Press c => press c board
+          | Flag c => flag c board
+      in
+        if exploded board then
+          (print "exploded!\n";
+           print (revealed_board_string board))
+        else if cleared board then
+          (print "cleared!\n")
+        else play board
+      end
+      handle Option => (print"bad move\n"; usage(); play board)
+    val () = play board
+  in TextIO.closeIn (!randomStream) end
