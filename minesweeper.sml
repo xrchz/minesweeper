@@ -34,8 +34,9 @@ fun square_string n (c,Flagged) = "!"
   | square_string n (Mine,Pressed) = "*"
   | square_string n (Safe,Pressed) = if n = 0 then " " else Int.toString n
 
-fun revealed_square_string _ ((Mine,_):square) = "*"
-  | revealed_square_string _ (Safe,_) = "+"
+fun revealed_square_string _ (Mine,Flagged) = "!"
+  | revealed_square_string _ (_,Flagged) = "?"
+  | revealed_square_string n (c,a) = square_string n (c,Pressed)
 
 fun is_Mine (Mine,_) = true
   | is_Mine _ = false
@@ -195,7 +196,8 @@ fun main() =
           (print "exploded!\n";
            print (revealed_board_string board))
         else if cleared board then
-          (print "cleared!\n")
+          (print "cleared!\n";
+           print (revealed_board_string board))
         else play board
       end
       handle Option => (print"bad move\n"; usage(); play board)
