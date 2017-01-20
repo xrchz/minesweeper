@@ -132,7 +132,9 @@ fun auto_clear board =
               val nmines = List.length (List.filter (is_Mine o board_sub board) nbcs)
               val (fcs,ucs) = List.partition (is_Flagged o board_sub board) nbcs
             in
-              if 0 < nmines andalso nmines <= List.length fcs then
+              if is_Pressed (board_sub board (i,j)) andalso
+                 0 < nmines andalso nmines <= List.length fcs
+              then
                 List.foldl (fn (c,b) => press b c) board ucs
               else board
             end
