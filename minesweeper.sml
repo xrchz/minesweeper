@@ -29,6 +29,9 @@ fun on_board size (i,j) =
   0 <= i andalso i < size andalso
   0 <= j andalso j < size
 
+fun board_sub board (i,j) =
+  Vector.sub(Vector.sub(board,i),j)
+
 fun square_string n (c,Flagged) = "!"
   | square_string n (c,Unpressed) = "+"
   | square_string n (Mine,Pressed) = "*"
@@ -56,7 +59,7 @@ fun neighbour_coords size (i,j) =
 fun num_mines board (i,j) =
   List.length
     (List.filter is_Mine
-      (List.map (fn (i,j) => Vector.sub(Vector.sub(board,i),j))
+      (List.map (board_sub board)
        (neighbour_coords (Vector.length board) (i,j))))
 
 fun mk_board_strings square_func board =
@@ -84,11 +87,11 @@ fun flag_square (c,Flagged) = (c,Unpressed)
   | flag_square (c,Unpressed) = (c,Flagged)
   | flag_square sq = sq
 
-fun press c board =
+fun press board c =
   let
     val size = Vector.length board
     fun p ((ii,jj),board) =
-      if is_Pressed (Vector.sub(Vector.sub(board,ii),jj))
+      if is_Pressed (board_sub board (ii,jj))
       then board
       else
       let
@@ -107,7 +110,7 @@ fun press c board =
       end
   in if on_board size c then p (c,board) else board end
 
-fun flag (c as (ii,jj)) board =
+fun flag board (c as (ii,jj)) =
   if on_board (Vector.length board) c then
     Vector.mapi(fn (i,row) =>
       Vector.mapi(fn (j,sq) =>
@@ -115,6 +118,26 @@ fun flag (c as (ii,jj)) board =
       row)
     board
   else board
+
+fun auto_clear board =
+  let
+    val size = Vector.length board
+    fun looprow i board =
+      if size <= i then board else looprow (i+1)
+      let
+        fun loopcol j board =
+          if size <= j then board else loopcol (j+1)
+            let
+              val nbcs = neighbour_coords size (i,j)
+              val nmines = List.length (List.filter (is_Mine o board_sub board) nbcs)
+              val (fcs,ucs) = List.partition (is_Flagged o board_sub board) nbcs
+            in
+              if 0 < nmines andalso nmines <= List.length fcs then
+                List.foldl (fn (c,b) => press b c) board ucs
+              else board
+            end
+      in loopcol 0 board end
+  in looprow 0 board end
 
 val exploded =
   Vector.exists(fn row =>
@@ -189,8 +212,8 @@ fun main() =
         val line = Option.valOf (TextIO.inputLine TextIO.stdIn)
         val board =
           case parse_move line of
-            Press c => press c board
-          | Flag c => flag c board
+            Press c => press board c
+          | Flag c => auto_clear (flag board c)
       in
         if exploded board then
           (print "exploded!\n";
