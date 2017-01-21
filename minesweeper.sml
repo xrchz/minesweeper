@@ -124,14 +124,14 @@ fun flag board (c as (ii,jj)) =
     board
   else board
 
-fun auto_clear board =
+fun auto_clear_aux board =
   let
     val size = Vector.length board
-    fun looprow i board =
-      if size <= i then board else looprow (i+1)
+    fun looprow i (acc as (board,changed)) =
+      if size <= i then acc else looprow (i+1)
       let
-        fun loopcol j board =
-          if size <= j then board else loopcol (j+1)
+        fun loopcol j (acc as (board,changed)) =
+          if size <= j then acc else loopcol (j+1)
             let
               val nbcs = neighbour_coords size (i,j)
               val nmines = List.length (List.filter (is_Mine o board_sub board) nbcs)
@@ -140,11 +140,16 @@ fun auto_clear board =
               if is_Pressed (board_sub board (i,j)) andalso
                  0 < nmines andalso nmines <= List.length fcs
               then
-                List.foldl (fn (c,b) => press b c) board ucs
-              else board
+                (List.foldl (fn (c,b) => press b c) board ucs,
+                 List.exists (not o is_Pressed o board_sub board) ucs)
+              else acc
             end
-      in loopcol 0 board end
-  in looprow 0 board end
+      in loopcol 0 acc end
+  in looprow 0 (board, false) end
+
+fun auto_clear board =
+  let val (board, changed) = auto_clear_aux board
+  in if changed then auto_clear board else board end
 
 val exploded =
   Vector.exists(fn row =>
