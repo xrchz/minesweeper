@@ -72,13 +72,18 @@ fun mk_board_strings square_func board =
 val board_strings = mk_board_strings square_string
 val revealed_board_strings = mk_board_strings revealed_square_string
 
-fun concat_strings board =
+fun concat_strings_with_index board =
   String.concat (
-    Vector.foldr(fn(row,acc) =>
-      Vector.foldr(fn(s,acc) => s::acc) ("\n"::acc) row) [] board )
+    Vector.foldri(fn(i,row,acc) =>
+      Vector.foldr(fn(s,acc) => s::acc)
+        ("|"::Int.toString (i mod 10)::"\n"::acc) row)
+      let val size = Vector.length board in
+        List.tabulate(size,fn j => Int.toString (j mod 10))
+      end
+      board )
 
-val board_string = concat_strings o board_strings
-val revealed_board_string = concat_strings o revealed_board_strings
+val board_string = concat_strings_with_index o board_strings
+val revealed_board_string = concat_strings_with_index o revealed_board_strings
 
 fun press_square (c,Unpressed) = (c,Pressed)
   | press_square sq = sq
