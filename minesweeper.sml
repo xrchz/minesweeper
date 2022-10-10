@@ -185,13 +185,6 @@ fun new_game() =
     val () = TextIO.output(TextIO.stdOut,"minesweeper\n")
     val size = prompt_num "Board size" 10
     val rate = prompt_num "Mine rate" 2
-    (*
-    val () = print "got data: "
-    val () = print (Int.toString size)
-    val () = print " "
-    val () = print (Int.toString rate)
-    val () = print "\n"
-    *)
   in mk_board rate size end
 
 datatype move = Press of int * int | Flag of int * int
@@ -229,10 +222,12 @@ fun main() =
       in
         if exploded board then
           (print "exploded!\n";
-           print (revealed_board_string board))
+           print (revealed_board_string board);
+           print "\n")
         else if cleared board then
           (print "cleared!\n";
-           print (revealed_board_string board))
+           print (revealed_board_string board);
+           print "\n")
         else play board
       end
       handle Option => (print"bad move\n"; usage(); play board)
